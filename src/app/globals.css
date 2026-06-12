@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/*
+  Dipdash — Fresh Green + Charcoal
+  Tailwind v4 CSS-first theme. Tokens become utilities, e.g. bg-primary, text-muted.
+*/
+@theme inline {
+  --color-primary: #16a34a;
+  --color-primary-dark: #14532d;
+  --color-primary-soft: #dcfce7;
+
+  --color-accent: #f59e0b;
+  --color-accent-soft: #fef3c7;
+
+  --color-bg: #f8faf9;
+  --color-surface: #ffffff;
+  --color-text: #0f1b14;
+  --color-muted: #5b6b61;
+  --color-border: #e2e8e4;
+
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-info: #2563eb;
+  --color-info-soft: #dbeafe;
+
+  /* Order-status ramp */
+  --color-status-pending: #5b6b61;
+  --color-status-paid: #2563eb;
+  --color-status-accepted: #f59e0b;
+  --color-status-collected: #16a34a;
+  --color-status-delivered: #14532d;
+  --color-status-disputed: #dc2626;
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+
+  --radius-card: 1rem;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Respect safe areas on installed PWAs (notches, home indicator) */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+/* Hide scrollbars on horizontal category rails */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
