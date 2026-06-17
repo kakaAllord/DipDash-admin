@@ -2,20 +2,23 @@
   Courier risk management.
 
   - Minimum deposit to go active: 2,000 TSh.
-  - Risk ceiling: a courier may not accept an order whose retail (item) value
-    exceeds 80% of their current security deposit.
-      2,000 deposit -> 1,600 ceiling (light items only).
+  - Risk ceiling: a courier may accept any order whose retail (item) value is up
+    to 90% of their current security deposit (not 100%).
+      2,000 deposit -> 1,800 ceiling (light items only).
   - Hot-meals tier unlocks once the deposit reaches 10,000 TSh.
-  - Earn-to-deposit: until the deposit reaches 10,000, a slice of each delivery
-    payout is withheld into the deposit (locked wallet) instead of paid out.
+  - Earnings: the courier keeps 50% of every delivery fee (the rest is the
+    platform's cut). Earnings are spendable — couriers can move them into their
+    deposit (to lift the ceiling / unlock hot meals) or cash them out.
 */
 
 export const RISK = {
   minDepositTsh: 2_000,
-  riskCeilingRatio: 0.8,
+  riskCeilingRatio: 0.9,
   hotMealsThresholdTsh: 10_000,
-  /** Fraction of each delivery fee withheld toward the deposit while scaling. */
-  withholdRate: 0.5,
+  /** Courier's share of each delivery fee. */
+  earningRate: 0.5,
+  /** Minimum earnings balance before a cash-out can be requested. */
+  payoutThresholdTsh: 5_000,
 } as const;
 
 export function orderCeiling(depositTsh: number): number {
@@ -30,6 +33,11 @@ export function canGoActive(depositTsh: number): boolean {
   return depositTsh >= RISK.minDepositTsh;
 }
 
+/** The courier's earning for a delivery: 50% of the delivery fee (rounded). */
+export function courierEarning(deliveryFeeTsh: number): number {
+  return Math.round(deliveryFeeTsh * RISK.earningRate);
+}
+
 export interface AcceptCheck {
   ok: boolean;
   reason?: string;
@@ -37,7 +45,7 @@ export interface AcceptCheck {
 
 /**
  * Can this courier accept an order of the given item value, considering both
- * the 80% ceiling and whether the order contains hot meals.
+ * the 90% ceiling and whether the order contains hot meals.
  */
 export function canAcceptOrder(args: {
   depositTsh: number;
@@ -64,41 +72,4 @@ export function canAcceptOrder(args: {
     };
   }
   return { ok: true };
-}
-
-export interface PayoutSplit {
-  /** Paid to the courier's spendable earnings. */
-  toEarningsTsh: number;
-  /** Withheld toward the deposit (locked wallet). */
-  withheldTsh: number;
-  /** Courier's deposit after this payout. */
-  newDepositTsh: number;
-}
-
-/**
- * Split a completed delivery's payout. While scaling toward the threshold a
- * portion is withheld into the deposit; the withholding never overshoots the
- * threshold. Once at/over the threshold, the full fee is paid out.
- */
-export function computePayoutSplit(
-  depositTsh: number,
-  deliveryFeeTsh: number
-): PayoutSplit {
-  if (hotMealsUnlocked(depositTsh)) {
-    return {
-      toEarningsTsh: deliveryFeeTsh,
-      withheldTsh: 0,
-      newDepositTsh: depositTsh,
-    };
-  }
-
-  const room = RISK.hotMealsThresholdTsh - depositTsh;
-  const desiredWithhold = Math.round(deliveryFeeTsh * RISK.withholdRate);
-  const withheldTsh = Math.min(desiredWithhold, room);
-
-  return {
-    toEarningsTsh: deliveryFeeTsh - withheldTsh,
-    withheldTsh,
-    newDepositTsh: depositTsh + withheldTsh,
-  };
 }

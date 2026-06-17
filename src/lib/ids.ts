@@ -11,14 +11,6 @@ export function numericCode(digits = 6): string {
   return randomInt(0, max).toString().padStart(digits, "0");
 }
 
-/** Courier activation token like "CR-904X". */
-export function courierToken(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"; // no I/O confusion
-  let body = "";
-  for (let i = 0; i < 4; i++) body += chars[randomInt(0, chars.length)];
-  return `CR-${body}`;
-}
-
 /** Short pickup token shown at the vendor counter, e.g. "PK-7321". */
 export function pickupToken(): string {
   return `PK-${numericCode(4)}`;

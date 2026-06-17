@@ -1,24 +1,80 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { courierToken } from "@/lib/ids";
+import { id } from "@/lib/ids";
 import { resolveCourierFault } from "@/lib/domain/escrow";
-import { RISK } from "@/lib/domain/risk";
+import { RISK, canAcceptOrder } from "@/lib/domain/risk";
+import { isHotMeal, MENU_CATEGORIES, type MenuCategory } from "@/lib/domain/catalog";
+import { courierDetail, type CourierDetail } from "@/lib/repo/admin";
 
 export interface Result {
   ok: boolean;
   error?: string;
-  token?: string;
 }
 
 async function requireAdmin() {
   return getSession("admin");
 }
 
-/** Approve a pending courier and issue an activation token (simulated SMS). */
+/**
+ * Set (or replace) the active delivery surge. Deactivates any prior active surge
+ * so at most one is ever in effect, then inserts the new one. `endsAt` is an
+ * optional epoch-ms auto-expiry; omit for "until terminated". The caller emits a
+ * `surge` socket event after this so student price views re-quote live.
+ */
+export async function setSurge(input: {
+  reason: string;
+  inCampusTsh: number;
+  outCampusTsh: number;
+  endsAt?: number | null;
+}): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
+  const reason = input.reason?.trim();
+  if (!reason) return { ok: false, error: "Give the surge a reason" };
+  const inCampusTsh = Math.max(0, Math.round(input.inCampusTsh || 0));
+  const outCampusTsh = Math.max(0, Math.round(input.outCampusTsh || 0));
+  if (inCampusTsh === 0 && outCampusTsh === 0) {
+    return { ok: false, error: "Set at least one surge amount above 0" };
+  }
+  if (input.endsAt != null && input.endsAt <= Date.now()) {
+    return { ok: false, error: "End time must be in the future" };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.surges)
+      .set({ active: false })
+      .where(eq(schema.surges.active, true));
+    await tx.insert(schema.surges).values({
+      id: id("srg"),
+      reason,
+      inCampusTsh,
+      outCampusTsh,
+      startsAt: Date.now(),
+      endsAt: input.endsAt ?? null,
+      active: true,
+    });
+  });
+
+  revalidatePath("/surge");
+  return { ok: true };
+}
+
+/** Turn off any active surge immediately. */
+export async function terminateSurge(): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
+  await db
+    .update(schema.surges)
+    .set({ active: false })
+    .where(eq(schema.surges.active, true));
+  revalidatePath("/surge");
+  return { ok: true };
+}
+
+/** Approve a pending courier. They then sign in with their admission + password. */
 export async function approveCourier(courierId: string): Promise<Result> {
   if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
 
@@ -33,21 +89,131 @@ export async function approveCourier(courierId: string): Promise<Result> {
     return { ok: false, error: "Courier is not pending" };
   }
 
-  const token = courierToken();
   await db
     .update(schema.couriers)
-    .set({ status: "approved", activationToken: token })
+    .set({ status: "approved" })
     .where(eq(schema.couriers.id, courierId));
 
-  console.log(`[SIM SMS] Courier ${courierId} approved. Token: ${token}`);
   revalidatePath("/couriers");
-  return { ok: true, token };
+  return { ok: true };
 }
 
 export async function rejectCourier(courierId: string): Promise<Result> {
   if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
   await db.delete(schema.couriers).where(eq(schema.couriers.id, courierId));
   revalidatePath("/couriers");
+  return { ok: true };
+}
+
+/** Manually assign a scheduled order to a courier (admin dispatch). */
+export async function assignCourier(
+  orderId: string,
+  courierId: string
+): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
+
+  const [orderRows, courierRows, items] = await Promise.all([
+    db.select().from(schema.orders).where(eq(schema.orders.id, orderId)).limit(1),
+    db.select().from(schema.couriers).where(eq(schema.couriers.id, courierId)).limit(1),
+    db.select().from(schema.orderItems).where(eq(schema.orderItems.orderId, orderId)),
+  ]);
+  const order = orderRows[0];
+  const courier = courierRows[0];
+  if (!order) return { ok: false, error: "Order not found" };
+  if (order.courierId || order.status !== "scheduled") {
+    return { ok: false, error: "Order is no longer awaiting dispatch" };
+  }
+  if (!courier || courier.status !== "active") {
+    return { ok: false, error: "Courier is not active" };
+  }
+
+  const hasHotMeal = items.some((i) => isHotMeal(i.category as MenuCategory));
+  const check = canAcceptOrder({
+    depositTsh: courier.depositTsh,
+    itemCostTsh: order.itemCostTsh,
+    hasHotMeal,
+  });
+  if (!check.ok) return { ok: false, error: check.reason };
+
+  const claimed = await db
+    .update(schema.orders)
+    .set({ courierId, status: "accepted", t1AcceptedAt: Date.now() })
+    .where(and(eq(schema.orders.id, orderId), isNull(schema.orders.courierId)))
+    .returning({ id: schema.orders.id });
+  if (claimed.length === 0) {
+    return { ok: false, error: "Order was just taken" };
+  }
+
+  revalidatePath("/dispatch");
+  revalidatePath("/orders");
+  return { ok: true };
+}
+
+/** Lazy-load a courier's orders + reviews for the detail modal. */
+export async function loadCourierDetail(
+  courierId: string
+): Promise<CourierDetail | null> {
+  if (!(await requireAdmin())) return null;
+  return courierDetail(courierId);
+}
+
+export interface VendorInput {
+  name: string;
+  location: "in_campus" | "out_campus";
+  blurb?: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+/** Add a vendor, including pickup coordinates used for distance + maps. */
+export async function createVendor(input: VendorInput): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
+  const name = input.name?.trim();
+  if (!name) return { ok: false, error: "Vendor name is required" };
+  if (input.location !== "in_campus" && input.location !== "out_campus") {
+    return { ok: false, error: "Choose a location" };
+  }
+  await db.insert(schema.vendors).values({
+    id: id("ven"),
+    name,
+    location: input.location,
+    blurb: input.blurb?.trim() || null,
+    lat: input.lat ?? null,
+    lng: input.lng ?? null,
+    isOpen: true,
+  });
+  revalidatePath("/vendors");
+  return { ok: true };
+}
+
+export interface MenuItemInput {
+  vendorId: string;
+  name: string;
+  category: string;
+  priceTsh: number;
+}
+
+/** Add a menu item to a vendor. */
+export async function createMenuItem(input: MenuItemInput): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "Unauthorized" };
+  const name = input.name?.trim();
+  if (!name) return { ok: false, error: "Item name is required" };
+  if (!MENU_CATEGORIES.includes(input.category as MenuCategory)) {
+    return { ok: false, error: "Choose a valid category" };
+  }
+  const price = Math.round(input.priceTsh);
+  if (!Number.isFinite(price) || price <= 0) {
+    return { ok: false, error: "Enter a price above 0" };
+  }
+  await db.insert(schema.menuItems).values({
+    id: id("itm"),
+    vendorId: input.vendorId,
+    name,
+    category: input.category,
+    priceTsh: price,
+    inStock: true,
+  });
+  revalidatePath("/vendors");
   return { ok: true };
 }
 

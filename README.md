@@ -20,10 +20,18 @@ The database is created/seeded from the **student** app (`dipdash`).
 
 - **Overview** — order counts, GMV, average cycle metrics (match/prep/transit/
   total from the four timestamps), and a demand‑by‑hour curve.
+- **Analytics** — orders by student level (most → never), peak buying hours, and
+  the most regular customers (name, level, course, orders, spend).
+- **Live map** — courier locations only (students are never shown); free vs.
+  on‑delivery couriers use distinct markers, and clicking one shows who they are
+  and which order(s) they're carrying.
 - **Couriers** — review pending applications (ID photo vs. live selfie), approve
-  to issue an activation token, and see the courier pool with deposits/ceilings.
+  (the courier then signs in with their admission + password), and open any
+  courier's **Details** for documents, phone, reviews, and active/past orders.
 - **Order ledger** — every order with its four timestamps; dispute in‑flight ones.
 - **Inventory** — toggle menu items in/out of stock platform‑wide in real time.
+- **Surge** — set a temporary per‑location delivery surcharge (with reason and an
+  optional auto‑end timer) that updates student pricing live over sockets.
 - **Escrow** — mediate disputes: approve a deduction (refund student + deduct
   courier deposit + restrict) or dismiss.
 

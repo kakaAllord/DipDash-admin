@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { Sidebar } from "@/components/admin/Sidebar";
+import { MobileNav } from "@/components/admin/MobileNav";
 import { Wordmark } from "@/components/Brand";
 import { Button } from "@/components/ui/Button";
 import { logoutAdmin } from "../login-actions";
@@ -32,9 +33,12 @@ export default async function DashLayout({
         </form>
       </aside>
 
-      <main className="flex-1 px-5 py-6 md:px-8">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileNav />
+        <main className="flex-1 px-4 py-5 sm:px-5 md:px-8 md:py-6">
+          <div className="mx-auto max-w-5xl">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

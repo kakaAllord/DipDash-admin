@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#16a34a"/>
+  <!-- looping delivery dash -->
+  <path d="M168 200a88 88 0 1 1 0 112" fill="none" stroke="#dcfce7" stroke-width="34" stroke-linecap="round" stroke-dasharray="44 40"/>
+  <circle cx="344" cy="256" r="30" fill="#f59e0b"/>
+  <circle cx="168" cy="256" r="18" fill="#ffffff"/>
+</svg>

@@ -8,7 +8,6 @@ import { approveCourier, rejectCourier } from "@/app/(dash)/admin-actions";
 export function CourierApproval({ courierId }: { courierId: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function approve() {
@@ -16,10 +15,7 @@ export function CourierApproval({ courierId }: { courierId: string }) {
     start(async () => {
       const res = await approveCourier(courierId);
       if (!res.ok) setError(res.error ?? "Failed");
-      else {
-        setToken(res.token ?? null);
-        router.refresh();
-      }
+      else router.refresh();
     });
   }
 
@@ -28,17 +24,6 @@ export function CourierApproval({ courierId }: { courierId: string }) {
       await rejectCourier(courierId);
       router.refresh();
     });
-  }
-
-  if (token) {
-    return (
-      <div className="rounded-lg border border-primary bg-primary-soft/50 px-3 py-2 text-sm">
-        ✅ Approved. Activation token (sent via SMS):{" "}
-        <span className="font-mono text-base font-bold tracking-wider text-primary-dark">
-          {token}
-        </span>
-      </div>
-    );
   }
 
   return (

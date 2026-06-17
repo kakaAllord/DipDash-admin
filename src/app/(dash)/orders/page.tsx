@@ -8,14 +8,18 @@ import {
   type OrderStatus,
 } from "@/lib/domain/lifecycle";
 import { DisputeButton } from "@/components/admin/DisputeButton";
+import { AdminLive } from "@/components/admin/AdminLive";
 
-const DISPUTABLE = ["paid", "accepted", "collected"];
+export const dynamic = "force-dynamic";
+
+const DISPUTABLE = ["scheduled", "paid", "accepted", "collected"];
 
 export default async function OrderLedger() {
   const orders = await listAllOrders();
 
   return (
     <div className="flex flex-col gap-6">
+      <AdminLive />
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Order ledger</h1>
         <p className="text-sm text-muted">

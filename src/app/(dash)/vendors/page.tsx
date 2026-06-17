@@ -4,18 +4,23 @@ import { Badge } from "@/components/ui/Badge";
 import { tsh } from "@/lib/format";
 import { CATEGORY_LABEL, type MenuCategory } from "@/lib/domain/catalog";
 import { StockToggle } from "@/components/admin/StockToggle";
+import { VendorCreate } from "@/components/admin/VendorCreate";
+import { MenuItemCreate } from "@/components/admin/MenuItemCreate";
 
 export default async function InventoryPage() {
   const vendors = await listVendorsWithMenu();
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Inventory</h1>
-        <p className="text-sm text-muted">
-          Toggle items in/out of stock — changes apply instantly across the
-          student app.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Inventory</h1>
+          <p className="text-sm text-muted">
+            Toggle items in/out of stock — changes apply instantly across the
+            student app.
+          </p>
+        </div>
+        <VendorCreate />
       </div>
 
       {vendors.map((v) => (
@@ -53,7 +58,11 @@ export default async function InventoryPage() {
                 </div>
               </li>
             ))}
+            {v.items.length === 0 && (
+              <li className="px-4 py-2.5 text-sm text-muted">No items yet.</li>
+            )}
           </ul>
+          <MenuItemCreate vendorId={v.id} />
         </Card>
       ))}
     </div>

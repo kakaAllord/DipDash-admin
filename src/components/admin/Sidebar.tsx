@@ -4,19 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-const links = [
+export const NAV_LINKS = [
   { href: "/", label: "Overview", icon: "📊" },
+  { href: "/analytics", label: "Analytics", icon: "📈" },
+  { href: "/live", label: "Live map", icon: "🗺️" },
+  { href: "/dispatch", label: "Dispatch", icon: "🧭" },
   { href: "/couriers", label: "Couriers", icon: "🛵" },
   { href: "/orders", label: "Order ledger", icon: "🧾" },
   { href: "/vendors", label: "Inventory", icon: "🏪" },
+  { href: "/surge", label: "Surge", icon: "⚡" },
   { href: "/escrow", label: "Escrow", icon: "🔒" },
+  { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1">
-      {links.map((l) => {
+      {NAV_LINKS.map((l) => {
         const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
         return (
           <Link

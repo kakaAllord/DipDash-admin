@@ -53,7 +53,7 @@ export default async function Overview() {
           ))}
         </div>
         <p className="mt-2 text-xs text-muted">
-          <span className="inline-block h-2 w-2 rounded-sm bg-accent" /> after 19:00 (night surge window)
+          <span className="inline-block h-2 w-2 rounded-sm bg-accent" /> evening hours (after 19:00)
         </p>
       </Card>
     </div>

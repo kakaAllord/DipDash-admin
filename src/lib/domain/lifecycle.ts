@@ -1,19 +1,23 @@
 /*
   Order lifecycle and the four operational timestamps.
 
-  pending_payment --pay--> paid --accept--> accepted --collect--> collected
-    --handoff(PIN)--> delivered
-  (paid|accepted|collected) --dispute--> disputed --resolve--> refunded
+  Two dispatch paths:
+    Instant   : finding_courier --accept--> pending_payment --pay--> accepted
+    Scheduled : scheduled (paid up front) --assign/accept--> accepted
+  Both then:  accepted --collect--> collected --handoff(PIN)--> delivered
+  Disputes :  (scheduled|accepted|collected) --dispute--> disputed --resolve--> refunded
 
   Timestamps:
-    T0 placed     (student pays & submits)
-    T1 accepted   (courier claims)
+    T0 placed     (instant: courier matched; scheduled: paid & submitted)
+    T1 accepted   (courier on the way)
     T2 collected  (courier shows pickup token at counter)
     T3 delivered  (student enters confirmation PIN at handoff)
 */
 
 export type OrderStatus =
+  | "finding_courier"
   | "pending_payment"
+  | "scheduled"
   | "paid"
   | "accepted"
   | "collected"
@@ -22,7 +26,9 @@ export type OrderStatus =
   | "refunded";
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
+  finding_courier: "Finding courier",
   pending_payment: "Awaiting payment",
+  scheduled: "Scheduled",
   paid: "Finding courier",
   accepted: "Courier on the way",
   collected: "Picked up",
@@ -36,7 +42,9 @@ export const ORDER_STATUS_TONE: Record<
   OrderStatus,
   "neutral" | "info" | "accent" | "primary" | "danger"
 > = {
+  finding_courier: "info",
   pending_payment: "neutral",
+  scheduled: "info",
   paid: "info",
   accepted: "accent",
   collected: "primary",
@@ -46,7 +54,9 @@ export const ORDER_STATUS_TONE: Record<
 };
 
 const FORWARD: Partial<Record<OrderStatus, OrderStatus>> = {
-  pending_payment: "paid",
+  finding_courier: "pending_payment",
+  pending_payment: "accepted",
+  scheduled: "accepted",
   paid: "accepted",
   accepted: "collected",
   collected: "delivered",
@@ -54,7 +64,12 @@ const FORWARD: Partial<Record<OrderStatus, OrderStatus>> = {
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   if (to === "disputed") {
-    return from === "paid" || from === "accepted" || from === "collected";
+    return (
+      from === "paid" ||
+      from === "scheduled" ||
+      from === "accepted" ||
+      from === "collected"
+    );
   }
   if (to === "refunded") return from === "disputed";
   return FORWARD[from] === to;

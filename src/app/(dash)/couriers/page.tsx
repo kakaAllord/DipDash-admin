@@ -1,21 +1,53 @@
-import { listCouriers } from "@/lib/repo/admin";
+import { listCouriers, courierRatingStats } from "@/lib/repo/admin";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { tsh } from "@/lib/format";
-import { orderCeiling } from "@/lib/domain/risk";
 import { CourierApproval } from "@/components/admin/CourierApproval";
+import { CourierDetail, type CourierLite } from "@/components/admin/CourierDetail";
+import { CourierPool } from "@/components/admin/CourierPool";
 
-const STATUS_TONE = {
-  pending: "accent",
-  approved: "info",
-  active: "primary",
-  restricted: "danger",
-} as const;
+export const dynamic = "force-dynamic";
+
+/** Map a CourierRow to the lite shape the detail modal needs. */
+function toLite(c: {
+  id: string;
+  studentName: string;
+  admissionNo: string;
+  phone: string;
+  course: string | null;
+  status: string;
+  depositTsh: number;
+  earningsTsh: number;
+  isOnline: boolean;
+  idCardImage: string | null;
+  selfieImage: string | null;
+}): CourierLite {
+  return {
+    id: c.id,
+    studentName: c.studentName,
+    admissionNo: c.admissionNo,
+    phone: c.phone,
+    course: c.course,
+    status: c.status,
+    depositTsh: c.depositTsh,
+    earningsTsh: c.earningsTsh,
+    isOnline: c.isOnline,
+    idCardImage: c.idCardImage,
+    selfieImage: c.selfieImage,
+  };
+}
 
 export default async function CouriersPage() {
-  const couriers = await listCouriers();
+  const [couriers, ratings] = await Promise.all([
+    listCouriers(),
+    courierRatingStats(),
+  ]);
   const pending = couriers.filter((c) => c.status === "pending");
   const rest = couriers.filter((c) => c.status !== "pending");
+  const pool = rest.map((c) => ({
+    ...toLite(c),
+    gender: c.gender ?? null,
+    rating: ratings.get(c.id),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,7 +70,10 @@ export default async function CouriersPage() {
           <Card key={c.id} className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-bold">{c.studentName}</p>
+                <p className="font-bold">
+                  {c.studentName}{" "}
+                  {c.gender === "female" ? "♀" : c.gender === "male" ? "♂" : ""}
+                </p>
                 <p className="text-sm text-muted">
                   {c.admissionNo} · {c.phone} · {c.course}
                 </p>
@@ -49,58 +84,20 @@ export default async function CouriersPage() {
               <Figure label="Student ID" src={c.idCardImage} />
               <Figure label="Live selfie" src={c.selfieImage} />
             </div>
-            <CourierApproval courierId={c.id} />
+            <div className="flex items-center gap-2">
+              <CourierApproval courierId={c.id} />
+              <CourierDetail courier={toLite(c)} rating={ratings.get(c.id)} />
+            </div>
           </Card>
         ))}
       </section>
 
-      {/* Existing couriers */}
-      <section className="flex flex-col gap-2">
+      {/* Courier pool — live online status + counts */}
+      <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
           Courier pool ({rest.length})
         </h2>
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                <th className="px-4 py-3">Courier</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Deposit</th>
-                <th className="px-4 py-3">Ceiling</th>
-                <th className="px-4 py-3">Earnings</th>
-                <th className="px-4 py-3">Online</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rest.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
-                    <p className="font-semibold">{c.studentName}</p>
-                    <p className="text-xs text-muted">{c.phone}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={STATUS_TONE[c.status as keyof typeof STATUS_TONE]}>
-                      {c.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{tsh(c.depositTsh)}</td>
-                  <td className="px-4 py-3">{tsh(orderCeiling(c.depositTsh))}</td>
-                  <td className="px-4 py-3 font-medium text-primary">
-                    {tsh(c.earningsTsh)}
-                  </td>
-                  <td className="px-4 py-3">{c.isOnline ? "🟢" : "⚪"}</td>
-                </tr>
-              ))}
-              {rest.length === 0 && (
-                <tr>
-                  <td className="px-4 py-6 text-center text-muted" colSpan={6}>
-                    No active couriers yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+        <CourierPool couriers={pool} />
       </section>
     </div>
   );
